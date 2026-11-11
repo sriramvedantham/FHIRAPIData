@@ -1,0 +1,35 @@
+{
+  "name": "FHIR Medallion Lakehouse Pipeline",
+  "description": "Incremental FHIR R4 ingestion (Patient -> Encounter -> Observation -> Condition) into Raw/Bronze/Silver(SCD2)/Gold. Replace /Users/sriramvedantham11@gmail.com/FHIRAPIData with your Git folder path.",
+  "max_concurrent_runs": 1,
+  "schedule": {"quartz_cron_expression": "0 0 6 * * ?", "timezone_id": "UTC", "pause_status": "PAUSED"},
+  "parameters": [
+    {"name": "catalog", "default": "fhirapidata1_ws"},
+    {"name": "schema", "default": "fhir_lakehouse"},
+    {"name": "raw_volume", "default": "raw"},
+    {"name": "fhir_base_url", "default": "https://hapi.fhir.org/baseR4"},
+    {"name": "page_size", "default": "200"},
+    {"name": "lookback_days", "default": "3"},
+    {"name": "max_pages_per_day", "default": "100"},
+    {"name": "start_date", "default": ""},
+    {"name": "end_date", "default": ""},
+    {"name": "run_id", "default": "{{job.run_id}}"}
+  ],
+  "tasks": [
+    {"task_key": "setup", "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/01_setup", "source": "WORKSPACE"}},
+    {"task_key": "raw_patient", "depends_on": [{"task_key": "setup"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/02_raw_ingest_api", "base_parameters": {"resource": "Patient"}, "source": "WORKSPACE"}},
+    {"task_key": "bronze_patient", "depends_on": [{"task_key": "raw_patient"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/03_bronze_load", "base_parameters": {"resource": "Patient"}, "source": "WORKSPACE"}},
+    {"task_key": "raw_encounter", "depends_on": [{"task_key": "bronze_patient"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/02_raw_ingest_api", "base_parameters": {"resource": "Encounter"}, "source": "WORKSPACE"}},
+    {"task_key": "bronze_encounter", "depends_on": [{"task_key": "raw_encounter"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/03_bronze_load", "base_parameters": {"resource": "Encounter"}, "source": "WORKSPACE"}},
+    {"task_key": "raw_observation", "depends_on": [{"task_key": "bronze_encounter"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/02_raw_ingest_api", "base_parameters": {"resource": "Observation"}, "source": "WORKSPACE"}},
+    {"task_key": "bronze_observation", "depends_on": [{"task_key": "raw_observation"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/03_bronze_load", "base_parameters": {"resource": "Observation"}, "source": "WORKSPACE"}},
+    {"task_key": "raw_condition", "depends_on": [{"task_key": "bronze_observation"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/02_raw_ingest_api", "base_parameters": {"resource": "Condition"}, "source": "WORKSPACE"}},
+    {"task_key": "bronze_condition", "depends_on": [{"task_key": "raw_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/03_bronze_load", "base_parameters": {"resource": "Condition"}, "source": "WORKSPACE"}},
+    {"task_key": "silver_patient", "depends_on": [{"task_key": "bronze_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/04_silver_scd2", "base_parameters": {"resource": "Patient"}, "source": "WORKSPACE"}},
+    {"task_key": "silver_encounter", "depends_on": [{"task_key": "bronze_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/04_silver_scd2", "base_parameters": {"resource": "Encounter"}, "source": "WORKSPACE"}},
+    {"task_key": "silver_observation", "depends_on": [{"task_key": "bronze_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/04_silver_scd2", "base_parameters": {"resource": "Observation"}, "source": "WORKSPACE"}},
+    {"task_key": "silver_condition", "depends_on": [{"task_key": "bronze_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/04_silver_scd2", "base_parameters": {"resource": "Condition"}, "source": "WORKSPACE"}},
+    {"task_key": "gold_views", "depends_on": [{"task_key": "silver_patient"}, {"task_key": "silver_encounter"}, {"task_key": "silver_observation"}, {"task_key": "silver_condition"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/05_gold_views", "source": "WORKSPACE"}},
+    {"task_key": "validation_checks", "depends_on": [{"task_key": "gold_views"}], "notebook_task": {"notebook_path": "/Users/sriramvedantham11@gmail.com/FHIRAPIData/notebooks/06_validation_checks", "source": "WORKSPACE"}}
+  ]
+}
